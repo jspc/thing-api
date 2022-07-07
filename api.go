@@ -23,49 +23,57 @@ import (
 var (
 	apiToken  = "devex_JIJrVvoMj3gy2xHTEo0QoGMpepCl0rJ8d1pkN3VgjjbMzJzerjnzLUhoNKMRoT8aTqUjoTaZxgT9fXReN2aw"
 	sanitiser = bluemonday.StrictPolicy()
-	base      = "/api/thing"
+	base      = "/api/tokens"
+
+	description = `The DevEx auth API is used to generate API Tokens for
+various DevEx services and integrations.`
 )
 
-// @Description Request body for a new 'thing`
-type NewThing struct {
+// @Description Request body for a new Token
+type NewToken struct {
 	// The name of the new thing
-	Name string `json:"name" validate:"required,printascii,min=5" example:"my new thing"`
+	Name string `json:"name" validate:"required,printascii,min=5,max=64,excludes=;" example:"my new thing"`
 }
 
-// @Description An object of the 'Thing' model
-type Thing struct {
-	// The id of this Thing
+// @Description A user created Token, including the status and name
+// @Description of the Token
+type Token struct {
+	// The id of this Token
 	ID string `json:"id"`
 
-	// The name of this thing
+	// The name of this Token, as specified by the user
 	Name string `json:"name"`
 
-	// The status of this thing, in enum ['creating', 'created', 'error']
+	// The status of this Token, in enum ['creating', 'created', 'error']
 	Status string `json:"status" enums:"creating,created,error"`
 
-	// The time this thing was created at
+	// The time this token was created at
 	CreatedAt time.Time `json:"created_at"`
 
-	// The time this thing was updated at
+	// The time this token was updated at
 	UpdatedAt time.Time `json:"updated_at"`
 
-	// Flooble holds the obviously important flooble value of this thing,
-	// which is unique to this thing and should be cherished
-	Flooble int `json:"flooble"`
+	// Value represents the user token associated with this object and
+	// is used when interacting with other APIs.
+	//
+	// The token Value should be stored securely, given the amount
+	// of power it has
+	Value int `json:"value"`
 }
 
+// @Description Error is a generic model for surfacing errors to users
 type Error struct {
 	M string `json:"msg"`
 }
 
 type API struct {
 	r        *gin.Engine
-	things   map[string]*Thing
+	things   map[string]*Token
 	validate *validator.Validate
 }
 
 func New() (a API) {
-	a.things = make(map[string]*Thing)
+	a.things = make(map[string]*Token)
 	a.validate = validator.New()
 
 	a.r = gin.New()
@@ -84,11 +92,12 @@ func New() (a API) {
 	a.r.Use(lm.Middleware())
 
 	docs.SwaggerInfo.BasePath = base
-	docs.SwaggerInfo.Title = "The Amazing Thing API, with added Floobles"
-	docs.SwaggerInfo.Description = "All the things, all the thing floobles, all the time"
+	docs.SwaggerInfo.Title = "DevEx auth API"
+	docs.SwaggerInfo.Description = description
 
-	api := a.r.Group(base, a.validateToken)
+	api := a.r.Group(base, a.validateAuthToken)
 
+	api.GET("/", a.Things)
 	api.POST("/", a.NewThing)
 	api.GET("/:id", a.LoadThing)
 	api.DELETE("/:uuid", a.DeleteThing)
@@ -96,7 +105,7 @@ func New() (a API) {
 	return
 }
 
-func (a API) validateToken(g *gin.Context) {
+func (a API) validateAuthToken(g *gin.Context) {
 	token := g.Request.Header.Get("Authorization")
 	if token == "" || token != apiToken {
 		g.AbortWithStatusJSON(400, a.errorMsg("missing or invalid authorization token"))
@@ -107,24 +116,51 @@ func (a API) validateToken(g *gin.Context) {
 	g.Next()
 }
 
-// NewThing godoc
-// @Summary create a new thing
+// Things godoc
+// @Summary return a list of a tokens owned by the current user
 // @Schemes
-// @Description create a new thing
+// @Description Return a list of all DevEx tokens owned by the
+// @Description currently authenticated user
+// @Tags All
+// @Accept json
+// @Produce json
+// @Param        Authorization  header    string  true  "Authentication header"
+// @Success 200 {array} Token
+// @Failure 401 {object} Error "Missing or Invalid Authorization header"
+// @Failure 429 {string} string "Too many requests"
+// @Router / [get]
+func (a *API) Things(g *gin.Context) {
+	things := make([]Token, 0, len(a.things))
+
+	for _, t := range a.things {
+		things = append(things, *t)
+	}
+
+	g.JSON(http.StatusOK, things)
+}
+
+// NewThing godoc
+// @Summary create a new token
+// @Schemes
+// @Description Accept a name and generate a new Thing, assigned
+// @Description to the currently authenticated user.
+// @Description A successful call to this end point will return status 201.
+// @Description You must make further GETs on the returned resource in order
+// @Description to determine whether the resource has been created successfully.
 // @Tags New
 // @Accept json
 // @Produce json
 // @Param        Authorization  header    string  true  "Authentication header"
-// @Param thing body NewThing true "New thing"
-// @Success 201 {object} Thing
+// @Param thing body NewToken true "Body containing the name of the new token to create"
+// @Success 201 {object} Token
 // @Failure 400 {object} Error "The input object failed validation"
-// @Failure 401 {object} Error "Missing or Invalid Authorization Token"
+// @Failure 401 {object} Error "Missing or Invalid Authorization Header"
 // @Failure 429 {string} string "Too many requests"
 // @Router / [post]
 func (a *API) NewThing(g *gin.Context) {
 	u := uuid.Must(uuid.NewV4()).String()
 
-	thing := new(NewThing)
+	thing := new(NewToken)
 	err := g.BindJSON(thing)
 	if err != nil {
 		g.AbortWithStatusJSON(400, a.errorMsg("invalid input"))
@@ -144,29 +180,31 @@ func (a *API) NewThing(g *gin.Context) {
 		return
 	}
 
-	a.things[u] = &Thing{
+	a.things[u] = &Token{
 		ID:        u,
 		Name:      sanitiser.Sanitize(thing.Name),
 		Status:    "creating",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		Flooble:   rand.Int(),
+		Value:     rand.Int(),
 	}
 
 	g.JSON(http.StatusCreated, a.things[u])
 }
 
 // LoadThing godoc
-// @Summary load a thing
+// @Summary load a token
 // @Schemes
-// @Description Load a thing from the thing API
+// @Description Load a specific token, by ID, for the currently
+// @Description authenticated user, returning a 404 when no such token
+// @Description can be found
 // @Tags Get
 // @Produce json
 // @Param        Authorization  header    string  true  "Authentication header"
-// @Param id path string true "Thing ID, see the ID field from a new Thing"
-// @Success 200 {object} Thing
-// @Failure 401 {object} Error "Missing or Invalid Authorization Token"
-// @Failure 404 {object} Error "This thing does not exist"
+// @Param id path string true "Token ID"
+// @Success 200 {object} Token
+// @Failure 401 {object} Error "Missing or Invalid Authorization Header"
+// @Failure 404 {object} Error "This Token does not exist"
 // @Failure 429 {string} string "Too many requests"
 // @Router /{id} [get]
 func (a *API) LoadThing(g *gin.Context) {
@@ -204,17 +242,17 @@ func (a *API) LoadThing(g *gin.Context) {
 }
 
 // LoadThing godoc
-// @Summary delete a thing
+// @Summary delete a token
 // @Schemes
-// @Description Delete a thing from the thing API
-// @Description Note: this endpoint will fail if the thing does not exist
+// @Description Delete the specified Token,
+// @Description returning a 404 if the Token ID is unrecognised
 // @Tags Delete
 // @Produce plain
 // @Param        Authorization  header    string  true  "Authentication header"
-// @Param id path string true "Thing ID, see the ID field from a new Thing"
-// @Success 200 {string} string "The thing was successfully deleted"
-// @Failure 401 {object} Error "Missing or Invalid Authorization Token"
-// @Failure 404 {object} Error "This thing does not exist"
+// @Param id path string true "Token ID"
+// @Success 200 {string} string "The token was successfully deleted"
+// @Failure 401 {object} Error "Missing or Invalid Authorization Header"
+// @Failure 404 {object} Error "This token does not exist"
 // @Failure 429 {string} string "Too many requests"
 // @Router /{id} [delete]
 func (a *API) DeleteThing(g *gin.Context) {

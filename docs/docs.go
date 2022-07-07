@@ -17,8 +17,53 @@ const docTemplate = `{
     "basePath": "{{.BasePath}}",
     "paths": {
         "/": {
+            "get": {
+                "description": "Return a list of all DevEx tokens owned by the\ncurrently authenticated user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "All"
+                ],
+                "summary": "return a list of a tokens owned by the current user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authentication header",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/main.Token"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or Invalid Authorization header",
+                        "schema": {
+                            "$ref": "#/definitions/main.Error"
+                        }
+                    },
+                    "429": {
+                        "description": "Too many requests",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
             "post": {
-                "description": "create a new thing",
+                "description": "Accept a name and generate a new Thing, assigned\nto the currently authenticated user.\nA successful call to this end point will return status 201.\nYou must make further GETs on the returned resource in order\nto determine whether the resource has been created successfully.",
                 "consumes": [
                     "application/json"
                 ],
@@ -28,7 +73,7 @@ const docTemplate = `{
                 "tags": [
                     "New"
                 ],
-                "summary": "create a new thing",
+                "summary": "create a new token",
                 "parameters": [
                     {
                         "type": "string",
@@ -38,12 +83,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "New thing",
+                        "description": "Body containing the name of the new token to create",
                         "name": "thing",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/main.NewThing"
+                            "$ref": "#/definitions/main.NewToken"
                         }
                     }
                 ],
@@ -51,7 +96,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/main.Thing"
+                            "$ref": "#/definitions/main.Token"
                         }
                     },
                     "400": {
@@ -61,7 +106,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Missing or Invalid Authorization Token",
+                        "description": "Missing or Invalid Authorization Header",
                         "schema": {
                             "$ref": "#/definitions/main.Error"
                         }
@@ -77,14 +122,14 @@ const docTemplate = `{
         },
         "/{id}": {
             "get": {
-                "description": "Load a thing from the thing API",
+                "description": "Load a specific token, by ID, for the currently\nauthenticated user, returning a 404 when no such token\ncan be found",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Get"
                 ],
-                "summary": "load a thing",
+                "summary": "load a token",
                 "parameters": [
                     {
                         "type": "string",
@@ -95,7 +140,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Thing ID, see the ID field from a new Thing",
+                        "description": "Token ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -105,17 +150,17 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/main.Thing"
+                            "$ref": "#/definitions/main.Token"
                         }
                     },
                     "401": {
-                        "description": "Missing or Invalid Authorization Token",
+                        "description": "Missing or Invalid Authorization Header",
                         "schema": {
                             "$ref": "#/definitions/main.Error"
                         }
                     },
                     "404": {
-                        "description": "This thing does not exist",
+                        "description": "This Token does not exist",
                         "schema": {
                             "$ref": "#/definitions/main.Error"
                         }
@@ -129,14 +174,14 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Delete a thing from the thing API\nNote: this endpoint will fail if the thing does not exist",
+                "description": "Delete the specified Token,\nreturning a 404 if the Token ID is unrecognised",
                 "produces": [
                     "text/plain"
                 ],
                 "tags": [
                     "Delete"
                 ],
-                "summary": "delete a thing",
+                "summary": "delete a token",
                 "parameters": [
                     {
                         "type": "string",
@@ -147,7 +192,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Thing ID, see the ID field from a new Thing",
+                        "description": "Token ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -155,19 +200,19 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "The thing was successfully deleted",
+                        "description": "The token was successfully deleted",
                         "schema": {
                             "type": "string"
                         }
                     },
                     "401": {
-                        "description": "Missing or Invalid Authorization Token",
+                        "description": "Missing or Invalid Authorization Header",
                         "schema": {
                             "$ref": "#/definitions/main.Error"
                         }
                     },
                     "404": {
-                        "description": "This thing does not exist",
+                        "description": "This token does not exist",
                         "schema": {
                             "$ref": "#/definitions/main.Error"
                         }
@@ -184,6 +229,7 @@ const docTemplate = `{
     },
     "definitions": {
         "main.Error": {
+            "description": "Error is a generic model for surfacing errors to users",
             "type": "object",
             "properties": {
                 "msg": {
@@ -191,8 +237,8 @@ const docTemplate = `{
                 }
             }
         },
-        "main.NewThing": {
-            "description": "Request body for a new 'thing` + "`" + `",
+        "main.NewToken": {
+            "description": "Request body for a new Token",
             "type": "object",
             "required": [
                 "name"
@@ -201,33 +247,30 @@ const docTemplate = `{
                 "name": {
                     "description": "The name of the new thing",
                     "type": "string",
+                    "maxLength": 64,
                     "minLength": 5,
                     "example": "my new thing"
                 }
             }
         },
-        "main.Thing": {
-            "description": "An object of the 'Thing' model",
+        "main.Token": {
+            "description": "A user created Token, including the status and name of the Token",
             "type": "object",
             "properties": {
                 "created_at": {
-                    "description": "The time this thing was created at",
+                    "description": "The time this token was created at",
                     "type": "string"
                 },
-                "flooble": {
-                    "description": "Flooble holds the obviously important flooble value of this thing,\nwhich is unique to this thing and should be cherished",
-                    "type": "integer"
-                },
                 "id": {
-                    "description": "The id of this Thing",
+                    "description": "The id of this Token",
                     "type": "string"
                 },
                 "name": {
-                    "description": "The name of this thing",
+                    "description": "The name of this Token, as specified by the user",
                     "type": "string"
                 },
                 "status": {
-                    "description": "The status of this thing, in enum ['creating', 'created', 'error']",
+                    "description": "The status of this Token, in enum ['creating', 'created', 'error']",
                     "type": "string",
                     "enum": [
                         "creating",
@@ -236,8 +279,12 @@ const docTemplate = `{
                     ]
                 },
                 "updated_at": {
-                    "description": "The time this thing was updated at",
+                    "description": "The time this token was updated at",
                     "type": "string"
+                },
+                "value": {
+                    "description": "Value represents the user token associated with this object and\nis used when interacting with other APIs.\n\nThe token Value should be stored securely, given the amount\nof power it has",
+                    "type": "integer"
                 }
             }
         }

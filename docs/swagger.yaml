@@ -1,102 +1,144 @@
 definitions:
   main.Error:
+    description: Error is a generic model for surfacing errors to users
     properties:
       msg:
         type: string
     type: object
-  main.NewThing:
-    description: Request body for a new 'thing`
+  main.NewToken:
+    description: Request body for a new Token
     properties:
       name:
         description: The name of the new thing
         example: my new thing
+        maxLength: 64
         minLength: 5
         type: string
     required:
     - name
     type: object
-  main.Thing:
-    description: An object of the 'Thing' model
+  main.Token:
+    description: A user created Token, including the status and name of the Token
     properties:
       created_at:
-        description: The time this thing was created at
+        description: The time this token was created at
         type: string
-      flooble:
-        description: |-
-          Flooble holds the obviously important flooble value of this thing,
-          which is unique to this thing and should be cherished
-        type: integer
       id:
-        description: The id of this Thing
+        description: The id of this Token
         type: string
       name:
-        description: The name of this thing
+        description: The name of this Token, as specified by the user
         type: string
       status:
-        description: The status of this thing, in enum ['creating', 'created', 'error']
+        description: The status of this Token, in enum ['creating', 'created', 'error']
         enum:
         - creating
         - created
         - error
         type: string
       updated_at:
-        description: The time this thing was updated at
+        description: The time this token was updated at
         type: string
+      value:
+        description: |-
+          Value represents the user token associated with this object and
+          is used when interacting with other APIs.
+
+          The token Value should be stored securely, given the amount
+          of power it has
+        type: integer
     type: object
 info:
   contact: {}
 paths:
   /:
-    post:
+    get:
       consumes:
       - application/json
-      description: create a new thing
+      description: |-
+        Return a list of all DevEx tokens owned by the
+        currently authenticated user
       parameters:
       - description: Authentication header
         in: header
         name: Authorization
         required: true
         type: string
-      - description: New thing
-        in: body
-        name: thing
-        required: true
-        schema:
-          $ref: '#/definitions/main.NewThing'
       produces:
       - application/json
       responses:
-        "201":
-          description: Created
+        "200":
+          description: OK
           schema:
-            $ref: '#/definitions/main.Thing'
-        "400":
-          description: The input object failed validation
-          schema:
-            $ref: '#/definitions/main.Error'
+            items:
+              $ref: '#/definitions/main.Token'
+            type: array
         "401":
-          description: Missing or Invalid Authorization Token
+          description: Missing or Invalid Authorization header
           schema:
             $ref: '#/definitions/main.Error'
         "429":
           description: Too many requests
           schema:
             type: string
-      summary: create a new thing
+      summary: return a list of a tokens owned by the current user
       tags:
-      - New
-  /{id}:
-    delete:
+      - All
+    post:
+      consumes:
+      - application/json
       description: |-
-        Delete a thing from the thing API
-        Note: this endpoint will fail if the thing does not exist
+        Accept a name and generate a new Thing, assigned
+        to the currently authenticated user.
+        A successful call to this end point will return status 201.
+        You must make further GETs on the returned resource in order
+        to determine whether the resource has been created successfully.
       parameters:
       - description: Authentication header
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Thing ID, see the ID field from a new Thing
+      - description: Body containing the name of the new token to create
+        in: body
+        name: thing
+        required: true
+        schema:
+          $ref: '#/definitions/main.NewToken'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/main.Token'
+        "400":
+          description: The input object failed validation
+          schema:
+            $ref: '#/definitions/main.Error'
+        "401":
+          description: Missing or Invalid Authorization Header
+          schema:
+            $ref: '#/definitions/main.Error'
+        "429":
+          description: Too many requests
+          schema:
+            type: string
+      summary: create a new token
+      tags:
+      - New
+  /{id}:
+    delete:
+      description: |-
+        Delete the specified Token,
+        returning a 404 if the Token ID is unrecognised
+      parameters:
+      - description: Authentication header
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Token ID
         in: path
         name: id
         required: true
@@ -105,33 +147,36 @@ paths:
       - text/plain
       responses:
         "200":
-          description: The thing was successfully deleted
+          description: The token was successfully deleted
           schema:
             type: string
         "401":
-          description: Missing or Invalid Authorization Token
+          description: Missing or Invalid Authorization Header
           schema:
             $ref: '#/definitions/main.Error'
         "404":
-          description: This thing does not exist
+          description: This token does not exist
           schema:
             $ref: '#/definitions/main.Error'
         "429":
           description: Too many requests
           schema:
             type: string
-      summary: delete a thing
+      summary: delete a token
       tags:
       - Delete
     get:
-      description: Load a thing from the thing API
+      description: |-
+        Load a specific token, by ID, for the currently
+        authenticated user, returning a 404 when no such token
+        can be found
       parameters:
       - description: Authentication header
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Thing ID, see the ID field from a new Thing
+      - description: Token ID
         in: path
         name: id
         required: true
@@ -142,20 +187,20 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.Thing'
+            $ref: '#/definitions/main.Token'
         "401":
-          description: Missing or Invalid Authorization Token
+          description: Missing or Invalid Authorization Header
           schema:
             $ref: '#/definitions/main.Error'
         "404":
-          description: This thing does not exist
+          description: This Token does not exist
           schema:
             $ref: '#/definitions/main.Error'
         "429":
           description: Too many requests
           schema:
             type: string
-      summary: load a thing
+      summary: load a token
       tags:
       - Get
 swagger: "2.0"
