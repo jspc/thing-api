@@ -92,7 +92,7 @@ func New() (a API) {
 	a.r.Use(lm.Middleware())
 
 	docs.SwaggerInfo.BasePath = base
-	docs.SwaggerInfo.Title = "DevEx auth API"
+	docs.SwaggerInfo.Title = "DevEx Auth API"
 	docs.SwaggerInfo.Description = description
 
 	api := a.r.Group(base, a.validateAuthToken)
