@@ -100,7 +100,7 @@ func New() (a API) {
 	api.GET("/", a.Things)
 	api.POST("/", a.NewThing)
 	api.GET("/:id", a.LoadThing)
-	api.DELETE("/:uuid", a.DeleteThing)
+	api.DELETE("/:id", a.DeleteThing)
 
 	return
 }
